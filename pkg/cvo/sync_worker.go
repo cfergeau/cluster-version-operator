@@ -153,11 +153,16 @@ type SyncWorker struct {
 	// manifests should be excluded based on an annotation
 	// of the form exclude.release.openshift.io/<identifier>=true
 	exclude string
+
+	// profile is an identifier used to detremine which
+	// manifests should be included based on an annotatio
+	// of the form include.release.openshift.io/<identifier>=true
+	profile string
 }
 
 // NewSyncWorker initializes a ConfigSyncWorker that will retrieve payloads to disk, apply them via builder
 // to a server, and obey limits about how often to reconcile or retry on errors.
-func NewSyncWorker(retriever PayloadRetriever, builder payload.ResourceBuilder, reconcileInterval time.Duration, backoff wait.Backoff, exclude string) *SyncWorker {
+func NewSyncWorker(retriever PayloadRetriever, builder payload.ResourceBuilder, reconcileInterval time.Duration, backoff wait.Backoff, exclude, profile string) *SyncWorker {
 	return &SyncWorker{
 		retriever: retriever,
 		builder:   builder,
@@ -172,14 +177,15 @@ func NewSyncWorker(retriever PayloadRetriever, builder payload.ResourceBuilder, 
 		report: make(chan SyncWorkerStatus, 500),
 
 		exclude: exclude,
+		profile: profile,
 	}
 }
 
 // NewSyncWorkerWithPreconditions initializes a ConfigSyncWorker that will retrieve payloads to disk, apply them via builder
 // to a server, and obey limits about how often to reconcile or retry on errors.
 // It allows providing preconditions for loading payload.
-func NewSyncWorkerWithPreconditions(retriever PayloadRetriever, builder payload.ResourceBuilder, preconditions precondition.List, reconcileInterval time.Duration, backoff wait.Backoff, exclude string) *SyncWorker {
-	worker := NewSyncWorker(retriever, builder, reconcileInterval, backoff, exclude)
+func NewSyncWorkerWithPreconditions(retriever PayloadRetriever, builder payload.ResourceBuilder, preconditions precondition.List, reconcileInterval time.Duration, backoff wait.Backoff, exclude, profile string) *SyncWorker {
+	worker := NewSyncWorker(retriever, builder, reconcileInterval, backoff, exclude, profile)
 	worker.preconditions = preconditions
 	return worker
 }
@@ -621,7 +627,7 @@ func (w *SyncWorker) apply(ctx context.Context, payloadUpdate *payload.Update, w
 			klog.V(4).Infof("Running sync for %s", task)
 			klog.V(5).Infof("Manifest: %s", string(task.Manifest.Raw))
 
-			ov, ok := getOverrideForManifest(work.Overrides, w.exclude, task.Manifest)
+			ov, ok := getOverrideForManifest(work.Overrides, w.exclude, w.profile, task.Manifest)
 			if ok && ov.Unmanaged {
 				klog.V(4).Infof("Skipping %s as unmanaged", task)
 				continue
@@ -916,18 +922,45 @@ func newMultipleError(errs []error) error {
 }
 
 // getOverrideForManifest returns the override and true when override exists for manifest.
-func getOverrideForManifest(overrides []configv1.ComponentOverride, excludeIdentifier string, manifest *lib.Manifest) (configv1.ComponentOverride, bool) {
+func getOverrideForManifest(overrides []configv1.ComponentOverride, excludeIdentifier, profileIdentifier string, manifest *lib.Manifest) (configv1.ComponentOverride, bool) {
+	kind, namespace, name := manifest.GVK.Kind, manifest.Object().GetNamespace(), manifest.Object().GetName()
 	for idx, ov := range overrides {
-		kind, namespace, name := manifest.GVK.Kind, manifest.Object().GetNamespace(), manifest.Object().GetName()
 		if ov.Kind == kind &&
 			(namespace == "" || ov.Namespace == namespace) && // cluster-scoped objects don't have namespace.
 			ov.Name == name {
 			return overrides[idx], true
 		}
 	}
-	excludeAnnotation := fmt.Sprintf("exclude.release.openshift.io/%s", excludeIdentifier)
-	if annotations := manifest.Object().GetAnnotations(); annotations != nil && annotations[excludeAnnotation] == "true" {
-		return configv1.ComponentOverride{Unmanaged: true}, true
+	annotations := manifest.Object().GetAnnotations()
+	if annotations != nil {
+		excludeIdentifier = "single-node-cluster-noexcludefornow"
+		excludeAnnotation := fmt.Sprintf("exclude.release.openshift.io/%s", excludeIdentifier)
+		excludeStr, _ := annotations[excludeAnnotation]
+		if excludeStr == "true" {
+			return configv1.ComponentOverride{Unmanaged: true}, true
+		}
+		return configv1.ComponentOverride{}, false
+		var includeAnnotation string
+
+		if profileIdentifier != "" {
+			includeAnnotation = fmt.Sprintf("include.release.openshift.io/%s", profileIdentifier)
+		} else {
+			includeAnnotation = "include.release.openshift.io/default"
+		}
+		includeStr, found := annotations[includeAnnotation]
+		if !found {
+			klog.Warningf("Could not find annotation '%s' for %s %s/%s", includeAnnotation, kind, namespace, name)
+			/* FIXME: when all manifests have "include.release.openshift.io/default" or
+			 * "include.release.openshift.io/single-node-cluster", then we can enable this return
+			 * For now let's rely on exclude.release.openshift.io annotations to exclude some manifests
+			 */
+			return configv1.ComponentOverride{Unmanaged: true}, true
+		} else {
+			if includeStr != "true" {
+				klog.Warningf("Invalid '%s' value for annotation '%s'", includeStr, includeAnnotation)
+			}
+			return configv1.ComponentOverride{}, false
+		}
 	}
 	return configv1.ComponentOverride{}, false
 }
