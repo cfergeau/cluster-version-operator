@@ -17,6 +17,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/labels"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	informerscorev1 "k8s.io/client-go/informers/core/v1"
@@ -206,12 +207,22 @@ func New(
 
 	optr.coLister = coInformer.Lister()
 	optr.cacheSynced = append(optr.cacheSynced, coInformer.Informer().HasSynced)
+	coList, err := optr.coLister.List(labels.Everything())
+	klog.Infof("coLister.List(): %v err: %v", coList, err)
 
 	optr.cvLister = cvInformer.Lister()
 	optr.cacheSynced = append(optr.cacheSynced, cvInformer.Informer().HasSynced)
 
+	cv, err := optr.cvLister.Get(optr.name)
+	cvList, err := optr.cvLister.List(labels.Everything())
+	klog.Infof("cv: %v cvLister.List(): %v err: %v", cv, cvList, err)
+
 	optr.proxyLister = proxyInformer.Lister()
 	optr.cmConfigLister = cmConfigInformer.Lister().ConfigMaps(internal.ConfigNamespace)
+	optr.ksConfigLister = kcmConfigInformer.Lister().ConfigMaps(internal.SystemNamespace)
+	//optr.cacheSynced = append(optr.cacheSynced, kcmConfigInformer.Informer().HasSynced)
+	list, err := optr.cmConfigLister.List(labels.Everything())
+	klog.Infof("cmConfigLister.List(): %v err: %v", list, err)
 
 	// make sure this is initialized after all the listers are initialized
 	optr.upgradeableChecks = optr.defaultUpgradeableChecks()
@@ -556,6 +567,7 @@ func (optr *Operator) availableUpdatesSync(key string) error {
 	if err != nil {
 		return err
 	}
+	klog.Infof("availableUpdatesSync: cvLister.Get(): %v", config)
 	if errs := validation.ValidateClusterVersion(config); len(errs) > 0 {
 		return nil
 	}
@@ -579,6 +591,7 @@ func (optr *Operator) upgradeableSync(key string) error {
 	if err != nil {
 		return err
 	}
+	klog.Infof("upgradeableSync: cvLister.Get(): %v", config)
 	if errs := validation.ValidateClusterVersion(config); len(errs) > 0 {
 		return nil
 	}
@@ -616,6 +629,7 @@ func (optr *Operator) rememberLastUpdate(config *configv1.ClusterVersion) {
 func (optr *Operator) getOrCreateClusterVersion(enableDefault bool) (*configv1.ClusterVersion, bool, error) {
 	obj, err := optr.cvLister.Get(optr.name)
 	if err == nil {
+		klog.Infof("getOrCreateClusterVersion: cvLister.Get(): %v", obj)
 		// if we are waiting to see a newer cached version, just exit
 		if optr.isOlderThanLastUpdate(obj) {
 			return nil, true, nil
