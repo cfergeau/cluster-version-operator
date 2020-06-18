@@ -293,9 +293,12 @@ func copyPayloadCmd(tdir string) string {
 // update is in the history.
 func findUpdateFromConfig(config *configv1.ClusterVersion) (configv1.Update, bool) {
 	update := config.Spec.DesiredUpdate
+
+	klog.V(1).Infof("findUpdateFromConfig: DesiredUpdate: %v", config.Spec.DesiredUpdate)
 	if update == nil {
 		return configv1.Update{}, false
 	}
+	klog.V(1).Infof("findUpdateFromConfig: DesiredUpdate.Image: %v", update.Image)
 	if len(update.Image) == 0 {
 		return findUpdateFromConfigVersion(config, update.Version, update.Force)
 	}
@@ -303,13 +306,16 @@ func findUpdateFromConfig(config *configv1.ClusterVersion) (configv1.Update, boo
 }
 
 func findUpdateFromConfigVersion(config *configv1.ClusterVersion, version string, force bool) (configv1.Update, bool) {
+	klog.V(1).Infof("findUpdateFromConfigVersion")
 	for _, update := range config.Status.AvailableUpdates {
 		if update.Version == version {
+			klog.V(1).Infof("findUpdateFromConfigVersion: update: %v", update)
 			return update, len(update.Image) > 0
 		}
 	}
 	for _, history := range config.Status.History {
 		if history.Version == version {
+			klog.V(1).Infof("findUpdateFromConfigVersion: ", history)
 			return configv1.Update{Image: history.Image, Version: history.Version, Force: force}, len(history.Image) > 0
 		}
 	}

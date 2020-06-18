@@ -3,6 +3,7 @@ package resourcebuilder
 import (
 	"context"
 	"fmt"
+	"runtime/debug"
 	"strings"
 
 	configv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
@@ -50,6 +51,9 @@ func (b *deploymentBuilder) Do(ctx context.Context) error {
 	if b.modifier != nil {
 		b.modifier(deployment)
 	}
+
+	klog.V(1).Infof("DeploymentBuilder.Do for %s", deployment.Name)
+	debug.PrintStack()
 
 	// if proxy injection is requested, get the proxy values and use them
 	if containerNamesString := deployment.Annotations["config.openshift.io/inject-proxy"]; len(containerNamesString) > 0 {

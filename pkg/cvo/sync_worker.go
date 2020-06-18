@@ -476,11 +476,16 @@ func (w *SyncWorker) Status() *SyncWorkerStatus {
 func (w *SyncWorker) syncOnce(ctx context.Context, work *SyncWork, maxWorkers int, reporter StatusReporter) error {
 	klog.V(4).Infof("Running sync %s (force=%t) on generation %d in state %s at attempt %d", versionString(work.Desired), work.Desired.Force, work.Generation, work.State, work.Attempt)
 	update := work.Desired
+	klog.V(1).Infof("TEUF syncOnce: update %v", update)
 
 	// cache the payload until the release image changes
 	validPayload := w.payload
+	if validPayload != nil {
+		klog.V(1).Infof("TEUF syncOnce: releaseImage %s", validPayload.ReleaseImage)
+	}
+
 	if validPayload == nil || !equalUpdate(configv1.Update{Image: validPayload.ReleaseImage}, configv1.Update{Image: update.Image}) {
-		klog.V(4).Infof("Loading payload")
+		klog.V(4).Infof("TEUF Loading payload")
 		reporter.Report(SyncWorkerStatus{
 			Generation:  work.Generation,
 			Step:        "RetrievePayload",
@@ -500,6 +505,8 @@ func (w *SyncWorker) syncOnce(ctx context.Context, work *SyncWork, maxWorkers in
 			})
 			return err
 		}
+		klog.V(1).Infof("TEUF syncOnce: info %v", info)
+		klog.V(1).Infof("TEUF syncOnce: directory %s image %s", info.Directory, update.Image)
 
 		payloadUpdate, err := payload.LoadUpdate(info.Directory, update.Image)
 		if err != nil {
@@ -516,6 +523,9 @@ func (w *SyncWorker) syncOnce(ctx context.Context, work *SyncWork, maxWorkers in
 		}
 		payloadUpdate.VerifiedImage = info.Verified
 		payloadUpdate.LoadedAt = time.Now()
+
+		//klog.V(1).Infof("TEUF syncOnce: payloadUpdate %v", payloadUpdate)
+		klog.V(1).Infof("TEUF syncOnce: after LoadUpdate")
 
 		// need to make sure the payload is only set when the preconditions have been successfull
 		if !info.Local && len(w.preconditions) > 0 {
@@ -542,7 +552,7 @@ func (w *SyncWorker) syncOnce(ctx context.Context, work *SyncWork, maxWorkers in
 		}
 
 		w.payload = payloadUpdate
-		klog.V(4).Infof("Payload loaded from %s with hash %s", payloadUpdate.ReleaseImage, payloadUpdate.ManifestHash)
+		klog.V(1).Infof("TEUF Payload loaded from %s with hash %s", payloadUpdate.ReleaseImage, payloadUpdate.ManifestHash)
 	}
 
 	return w.apply(ctx, w.payload, work, maxWorkers, reporter)
@@ -624,8 +634,8 @@ func (w *SyncWorker) apply(ctx context.Context, payloadUpdate *payload.Update, w
 			}
 			cr.Update()
 
-			klog.V(4).Infof("Running sync for %s", task)
-			klog.V(5).Infof("Manifest: %s", string(task.Manifest.Raw))
+			klog.V(1).Infof("TEUF: Running sync for %s - w.exclude = %s w.profile = %s", task, w.exclude, w.profile)
+			//klog.V(1).Infof("TEUF: Manifest: %s", string(task.Manifest.Raw))
 
 			ov, ok := getOverrideForManifest(work.Overrides, w.exclude, w.profile, task.Manifest)
 			if ok && ov.Unmanaged {

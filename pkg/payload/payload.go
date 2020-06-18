@@ -103,6 +103,7 @@ type Update struct {
 }
 
 func LoadUpdate(dir, releaseImage string) (*Update, error) {
+	klog.V(1).Infof("TEUF LoadUpdate from directory %s releaseImage %s", dir, releaseImage)
 	payload, tasks, err := loadUpdatePayloadMetadata(dir, releaseImage)
 	if err != nil {
 		return nil, err
@@ -132,6 +133,7 @@ func LoadUpdate(dir, releaseImage string) (*Update, error) {
 				continue
 			}
 
+			klog.V(1).Infof("TEUF LoadManifest from %s", p)
 			raw, err := ioutil.ReadFile(p)
 			if err != nil {
 				errs = append(errs, errors.Wrapf(err, "error reading file %s", file.Name()))
@@ -207,7 +209,7 @@ type payloadTasks struct {
 }
 
 func loadUpdatePayloadMetadata(dir, releaseImage string) (*Update, []payloadTasks, error) {
-	klog.V(4).Infof("Loading updatepayload from %q", dir)
+	klog.V(1).Infof("Loading updatepayload from %q", dir)
 	if err := ValidateDirectory(dir); err != nil {
 		return nil, nil, err
 	}
@@ -215,6 +217,7 @@ func loadUpdatePayloadMetadata(dir, releaseImage string) (*Update, []payloadTask
 		cvoDir     = filepath.Join(dir, CVOManifestDir)
 		releaseDir = filepath.Join(dir, ReleaseManifestDir)
 	)
+	klog.V(1).Infof("releaseDir: %s cvoDir: %s", releaseDir, cvoDir)
 
 	imageRef, err := loadImageReferences(releaseDir)
 	if err != nil {
