@@ -115,6 +115,7 @@ type Operator struct {
 	cvLister       configlistersv1.ClusterVersionLister
 	coLister       configlistersv1.ClusterOperatorLister
 	cmConfigLister listerscorev1.ConfigMapNamespaceLister
+	ksConfigLister listerscorev1.ConfigMapNamespaceLister
 	proxyLister    configlistersv1.ProxyLister
 	cacheSynced    []cache.InformerSynced
 
@@ -166,6 +167,7 @@ func New(
 	cvInformer configinformersv1.ClusterVersionInformer,
 	coInformer configinformersv1.ClusterOperatorInformer,
 	cmConfigInformer informerscorev1.ConfigMapInformer,
+	kcmConfigInformer informerscorev1.ConfigMapInformer,
 	proxyInformer configinformersv1.ProxyInformer,
 	client clientset.Interface,
 	kubeClient kubernetes.Interface,
@@ -232,6 +234,30 @@ func (vcb *verifyClientBuilder) HTTPClient() (*http.Client, error) {
 	return vcb.builder()
 }
 
+func (optr *Operator) getProfile() (string, error) {
+	var (
+		cm  *corev1.ConfigMap
+		err error
+	)
+
+	if cm, err = optr.ksConfigLister.Get(internal.ClusterConfigMap); err != nil {
+		klog.Infof("ksConfigLister.Get() failed: %v", err)
+	} else {
+		profile := cm.Data["install-config"] // clusterProfile
+		klog.Infof("Read profile from kube-system:cluster-config-v1: '%v'", profile)
+	}
+	if cm, err = optr.cmConfigLister.Get(internal.InstallerConfigMap); err != nil {
+		klog.Infof("cmConfigLister.Get() failed: %v", err)
+		return "", err
+	}
+	profile := cm.Data["profile"]
+	if profile != "" {
+		klog.Infof("Using profile '%s'", profile)
+	}
+
+	return profile, nil
+}
+
 // InitializeFromPayload retrieves the payload contents and verifies the initial state, then configures the
 // controller that loads and applies content to the cluster. It returns an error if the payload appears to
 // be in error rather than continuing.
@@ -269,6 +295,12 @@ func (optr *Operator) InitializeFromPayload(restConfig *rest.Config, burstRestCo
 	optr.verifier = verifier
 	optr.signatureStore = signatureStore
 
+	profile, err := optr.getProfile()
+	if err != nil {
+		klog.Warningf("Failed to get profile")
+		//return err
+	}
+
 	// after the verifier has been loaded, initialize the sync worker with a payload retriever
 	// which will consume the verifier
 	optr.configSync = NewSyncWorkerWithPreconditions(
@@ -282,6 +314,7 @@ func (optr *Operator) InitializeFromPayload(restConfig *rest.Config, burstRestCo
 			Steps:    3,
 		},
 		optr.exclude,
+		profile,
 	)
 
 	return nil

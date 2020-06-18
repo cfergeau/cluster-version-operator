@@ -91,6 +91,8 @@ func setupCVOTest(payloadDir string) (*Operator, map[string]runtime.Object, *fak
 			Steps: 1,
 		},
 		"",
+		/* FIXME: add test that profiles work as expected? */
+		"",
 	)
 	o.configSync = worker
 
