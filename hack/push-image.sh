@@ -15,5 +15,5 @@ if [ -z ${VERSION_OVERRIDE+a} ]; then
 fi
 
 set -x
-podman push "cluster-version-operator:${VERSION_OVERRIDE}" "${REPO}/origin-cluster-version-operator:${VERSION_OVERRIDE}"
-podman push "cluster-version-operator:${VERSION_OVERRIDE}" "${REPO}/origin-cluster-version-operator:latest"
+podman push --tls-verify=false "cluster-version-operator:${VERSION_OVERRIDE}" "${REPO}/origin-cluster-version-operator:${VERSION_OVERRIDE}"
+podman push --tls-verify=false "cluster-version-operator:${VERSION_OVERRIDE}" "${REPO}/origin-cluster-version-operator:latest"
