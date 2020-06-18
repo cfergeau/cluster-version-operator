@@ -240,12 +240,20 @@ func (optr *Operator) getProfile() (string, error) {
 		err error
 	)
 
+	klog.Infof("getProfile()")
+	//list, err := optr.ksConfigLister.List(labels.Everything())
+	//klog.Infof("ksConfigLister.List(): %v err: %v", list, err)
+
 	if cm, err = optr.ksConfigLister.Get(internal.ClusterConfigMap); err != nil {
 		klog.Infof("ksConfigLister.Get() failed: %v", err)
 	} else {
 		profile := cm.Data["install-config"] // clusterProfile
 		klog.Infof("Read profile from kube-system:cluster-config-v1: '%v'", profile)
 	}
+	//klog.Infof("ConfigMap kube-system:cluster-config-v1: %v", cm)
+
+	//list, err = optr.cmConfigLister.List(labels.Everything())
+	//klog.Infof("cmConfigLister.List(): %v err: %v", list, err)
 	if cm, err = optr.cmConfigLister.Get(internal.InstallerConfigMap); err != nil {
 		klog.Infof("cmConfigLister.Get() failed: %v", err)
 		return "", err
@@ -372,6 +380,9 @@ func (optr *Operator) Run(ctx context.Context, workers int) {
 
 	// trigger the first cluster version reconcile always
 	optr.queue.Add(optr.queueKey())
+
+	profile, err := optr.getProfile()
+	klog.Warningf("getProfile: %v err: %v", profile, err)
 
 	// start the config sync loop, and have it notify the queue when new status is detected
 	go runThrottledStatusNotifier(stopCh, optr.statusInterval, 2, optr.configSync.StatusCh(), func() { optr.queue.Add(optr.queueKey()) })

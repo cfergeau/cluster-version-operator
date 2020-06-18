@@ -931,15 +931,32 @@ func getOverrideForManifest(overrides []configv1.ComponentOverride, excludeIdent
 			return overrides[idx], true
 		}
 	}
+	/*
+		if excludeIdentifier == "" {
+			return
+		}
+	*/
 	annotations := manifest.Object().GetAnnotations()
 	if annotations != nil {
 		excludeIdentifier = "single-node-cluster-noexcludefornow"
 		excludeAnnotation := fmt.Sprintf("exclude.release.openshift.io/%s", excludeIdentifier)
-		excludeStr, _ := annotations[excludeAnnotation]
+		excludeStr, found := annotations[excludeAnnotation]
+		if found {
+			klog.Warningf("Found annotation '%s' with value '%s' for %s %s/%s", excludeAnnotation, excludeStr, kind, namespace, name)
+		} else {
+			klog.Warningf("Could not find annotation '%s' for %s %s/%s", excludeAnnotation, kind, namespace, name)
+		}
 		if excludeStr == "true" {
+			klog.Warningf("Ignoring exclude annotation")
 			return configv1.ComponentOverride{Unmanaged: true}, true
 		}
 		return configv1.ComponentOverride{}, false
+		/*
+			for annotation, value := range annotations {
+				klog.V(1).Infof("TEUF: found annotation: %s = %s", annotation, value)
+			}
+		*/
+		//includeIdentifier := excludeIdentifier
 		var includeAnnotation string
 
 		if profileIdentifier != "" {
@@ -956,11 +973,13 @@ func getOverrideForManifest(overrides []configv1.ComponentOverride, excludeIdent
 			 */
 			return configv1.ComponentOverride{Unmanaged: true}, true
 		} else {
+			klog.Warningf("Found annotation '%s' with value '%s' for %s %s/%s", includeAnnotation, includeStr, kind, namespace, name)
 			if includeStr != "true" {
 				klog.Warningf("Invalid '%s' value for annotation '%s'", includeStr, includeAnnotation)
 			}
 			return configv1.ComponentOverride{}, false
 		}
+		klog.Warningf("getOverrideForManifest - should not be reached")
 	}
 	return configv1.ComponentOverride{}, false
 }
