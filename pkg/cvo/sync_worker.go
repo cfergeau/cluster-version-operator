@@ -154,8 +154,8 @@ type SyncWorker struct {
 	// of the form exclude.release.openshift.io/<identifier>=true
 	exclude string
 
-	// profile is an identifier used to detremine which
-	// manifests should be included based on an annotatio
+	// profile is an identifier used to determine which
+	// manifests should be included based on an annotation
 	// of the form include.release.openshift.io/<identifier>=true
 	profile string
 }
