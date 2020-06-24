@@ -938,6 +938,7 @@ func getOverrideForManifest(overrides []configv1.ComponentOverride, excludeIdent
 		if ov.Kind == kind &&
 			(namespace == "" || ov.Namespace == namespace) && // cluster-scoped objects don't have namespace.
 			ov.Name == name {
+			klog.Warningf("Found override '%d' with value '%v' for %s %s/%s", idx, overrides[idx], kind, namespace, name)
 			return overrides[idx], true
 		}
 	}
