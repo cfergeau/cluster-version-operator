@@ -315,7 +315,7 @@ func findUpdateFromConfigVersion(config *configv1.ClusterVersion, version string
 	}
 	for _, history := range config.Status.History {
 		if history.Version == version {
-			klog.V(1).Infof("findUpdateFromConfigVersion: ", history)
+			klog.V(1).Infof("findUpdateFromConfigVersion: %v", history)
 			return configv1.Update{Image: history.Image, Version: history.Version, Force: force}, len(history.Image) > 0
 		}
 	}
